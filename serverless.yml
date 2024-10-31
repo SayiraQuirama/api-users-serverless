@@ -1,0 +1,95 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: pragmasayira
+# "app" enables Serverless Framework Dashboard features and sharing them with other Services.
+app: api-users
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: aws-route-serverless
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  environment:
+    TOPIC_ARN: ${ssm:topicArn}
+    TABLE_NAME: ${ssm:tableName}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Scan
+        - dynamodb:PutItem
+        - dynamodb:GetItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - "sns:Publish"
+      Resource:
+        - arn:aws:dynamodb:us-east-1:605134450230:table/users
+        - arn:aws:sns:us-east-1:605134450230:sendEmailConfirmation
+        - arn:aws:ssm:us-east-1:605134450230:parameter/tableName
+        - arn:aws:ssm:us-east-1:605134450230:parameter/topicArn
+
+
+resources:
+  Resources:
+    CognitoUserPoolAuthorizer:
+      Type: AWS::ApiGateway::Authorizer
+      Properties:
+        Name: CognitoUserPoolAuthorizer
+        IdentitySource: method.request.header.Authorization
+        RestApiId:
+          Ref: ApiGatewayRestApi
+        Type: COGNITO_USER_POOLS
+        ProviderARNs:
+         - arn:aws:cognito-idp:us-east-1:605134450230:userpool/us-east-1_rAbG9Mkiw
+
+functions:
+  getUsers:
+    handler: handler.getUsers
+    events:
+      - httpApi:
+          path: /users
+          method: get
+
+
+  addUser:
+    handler: handler.addUser
+    events:
+      - http:
+          path: users
+          method: post
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: CognitoUserPoolAuthorizer
+
+  updateUser:
+    handler: handler.updateUser
+    events:
+      - http:
+          path: users/{id}
+          method: put
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: CognitoUserPoolAuthorizer
+
+  deleteUser:
+    handler: handler.deleteUser
+    events:
+      - http:
+          path: users/{id}
+          method: delete
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: CognitoUserPoolAuthorizer
+
+  sendEmail:
+    handler: handler.sendEmail
+    events:
+      - http:
+          path: users/send-email
+          method: post
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: CognitoUserPoolAuthorizer
